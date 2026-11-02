@@ -1,0 +1,1013 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Cedar at the Ballpark</title>
+<meta name="description" content="Help Cedar work the bleachers at a high-school baseball game for treats. Avoid the scary sun umbrellas and don't get caught begging.">
+<style>
+  :root {
+    --bg: #14301f; --panel: #1d3d29; --text: #f4f1e6; --muted: #b9c7b4; --accent: #f2b33d;
+    --on-accent: #1b1305; --border: #2f5a3d; --danger: #e85d4a;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: var(--bg); color: var(--text);
+    font: 15px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+  header {
+    display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+    padding: 10px 16px; background: var(--panel); border-bottom: 1px solid var(--border);
+  }
+  header h1 { margin: 0; font-size: 18px; letter-spacing: .3px; }
+  .hud { display: flex; gap: 16px; align-items: center; margin-left: auto; flex-wrap: wrap; }
+  .pill { background: rgba(0,0,0,.25); border-radius: 999px; padding: 4px 12px; font-weight: 600; white-space: nowrap; }
+  .pill.big { font-size: 17px; color: var(--accent); }
+  .icon-btn {
+    border: 1px solid var(--border); background: transparent; color: var(--text);
+    border-radius: 8px; padding: 4px 10px; font: inherit; cursor: pointer;
+  }
+  #wrap { position: relative; flex: 1; min-height: 0; }
+  canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+  .overlay {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    background: rgba(10, 25, 15, .72); padding: 16px;
+  }
+  .overlay[hidden] { display: none; }
+  .card {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 16px;
+    max-width: 520px; width: 100%; padding: 22px 24px; text-align: center;
+    box-shadow: 0 20px 50px rgba(0,0,0,.35);
+  }
+  .card h2 { margin: 0 0 6px; font-size: 26px; }
+  .card p { margin: 8px 0; color: var(--muted); }
+  .card ul { text-align: left; margin: 12px 0; padding-left: 20px; color: var(--text); }
+  .card li { margin: 5px 0; }
+  .play {
+    margin-top: 12px; border: 0; background: var(--accent); color: var(--on-accent);
+    font: 700 17px/1 system-ui, sans-serif; padding: 12px 26px; border-radius: 12px; cursor: pointer;
+  }
+  .result { font-size: 44px; font-weight: 800; color: var(--accent); margin: 6px 0 0; }
+  .rating { font-size: 20px; font-weight: 700; margin: 4px 0 8px; }
+  #sitBtn {
+    position: absolute; right: 18px; bottom: 18px; width: 92px; height: 92px; border-radius: 50%;
+    border: 3px solid rgba(255,255,255,.7); background: rgba(242, 179, 61, .9); color: var(--on-accent);
+    font: 800 17px/1.1 system-ui, sans-serif; display: none; touch-action: none; user-select: none;
+    -webkit-user-select: none;
+  }
+  #sitBtn.on { background: #fff3c4; }
+  body.touch #sitBtn { display: block; }
+  .keys { display: inline-block; border: 1px solid var(--border); border-radius: 5px; padding: 0 6px; font-size: 13px; background: rgba(0,0,0,.2); }
+  @media (max-width: 640px) {
+    header h1 { font-size: 16px; }
+    .hud { gap: 8px; margin-left: 0; }
+    .pill { padding: 3px 9px; font-size: 13px; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>🐾 Cedar at the Ballpark</h1>
+  <div class="hud">
+    <span class="pill big" id="hudTreats">🦴 0 treats</span>
+    <span class="pill" id="hudInning">Top 1st</span>
+    <span class="pill" id="hudTime">2:30</span>
+    <button class="icon-btn" id="soundBtn" aria-label="Toggle sound">🔊</button>
+    <button class="icon-btn" id="pauseBtn" aria-label="Pause">⏸</button>
+  </div>
+</header>
+<div id="wrap">
+  <canvas id="game"></canvas>
+  <button id="sitBtn" aria-label="Sit and beg">SIT &amp;<br>BEG</button>
+  <div class="overlay" id="titleScreen">
+    <div class="card">
+      <h2>Cedar at the Ballpark</h2>
+      <p>It's a high-school game and the bleachers are full of snacks. Cedar has exactly one job.</p>
+      <ul>
+        <li><b>Move:</b> <span class="keys">←↑↓→</span> or <span class="keys">WASD</span>. On a phone, tap where to go.</li>
+        <li><b>Beg:</b> next to someone, hold <span class="keys">Space</span> (or the <b>Sit &amp; Beg</b> button) until the puppy-eyes meter fills.</li>
+        <li>Kids and grandparents are easy marks. Watch out for the <b>🚫 "Don't feed the dog!"</b> folks.</li>
+        <li>Don't get caught begging by <b>your human</b> (watch her line of sight).</li>
+        <li><b>Sun umbrellas are terrifying.</b> Cedar won't go near an open one.</li>
+        <li>Dropped snacks on the ground are fair game. Baseballs are not: Cedar is a good boy.</li>
+      </ul>
+      <button class="play" id="playBtn">Play ball!</button>
+      <p id="bestLine"></p>
+    </div>
+  </div>
+  <div class="overlay" id="endScreen" hidden>
+    <div class="card">
+      <h2>That's the game!</h2>
+      <div class="result" id="endTreats">0</div>
+      <div class="rating" id="endRating"></div>
+      <p id="endDetail"></p>
+      <button class="play" id="againBtn">Another game</button>
+    </div>
+  </div>
+  <div class="overlay" id="pauseScreen" hidden>
+    <div class="card"><h2>Paused</h2><p>Cedar is having a quick drink of water.</p><button class="play" id="resumeBtn">Resume</button></div>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* =========================================================
+   World layout (logical units; the canvas scales to fit)
+   ========================================================= */
+const W = 1200, H = 800;
+const HOME = { x: 600, y: 440 };
+const BASE_R = 150;                     // home-to-first distance in world units
+const FENCE_Y = 482;                    // chain-link fence between field and stands
+const ZONE = { x0: 18, x1: 1182, y0: 498, y1: 786 };   // where Cedar can roam
+const ROWS = [575, 630, 685, 740];      // bleacher bench centre lines
+const BLOCKS = [{ x0: 50, x1: 505 }, { x0: 695, x1: 1150 }];
+const SHACK = { x0: 528, x1: 672, y0: 712, y1: 790 };   // snack shack (obstacle)
+const GAME_SECONDS = 150;
+
+const rnd = (a, b) => a + Math.random() * (b - a);
+const pick = a => a[Math.floor(Math.random() * a.length)];
+const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+function mulberry32(a) { return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+
+/* =========================================================
+   Cedar's look (from his photo): grey-fawn brindle, dark
+   tiger stripes, grey-white muzzle, dark mask, dark folded
+   ears, black collar, long curled tail with a dark tip.
+   ========================================================= */
+const COAT = "#b9b1a1", COAT_DARK = "#8f8676", STRIPE = "rgba(58,50,43,0.5)", MUZZLE = "#cfcac1",
+  MASK = "#55504a", EAR = "#3a3531", NOSE = "#1d1a18", COLLAR = "#151515";
+const br = mulberry32(23);
+// Brindle: soft, irregular, slanted streaks of different darkness (like his coat in the photo)
+const STRIPES = Array.from({ length: 38 }, () => {
+  const x = -46 + br() * 92, slant = (br() - 0.5) * 7, top = -21 + br() * 8, n = 3 + Math.floor(br() * 4);
+  const pts = Array.from({ length: n }, (_, k) => ({ x: x + slant * (k / n) + (br() - 0.5) * 2.2, y: top + k * (42 - (top + 21)) / (n - 1 || 1) * 0.95 }));
+  return { pts, w: 0.8 + br() * 1.8, a: 0.18 + br() * 0.3 };
+});
+const HEAD_STRIPES = Array.from({ length: 6 }, (_, i) => ({ x: -8 + i * 2.6 + br(), w: 0.8 + br() * 0.8 }));
+
+function bodyPath(ctx, L, sit) {
+  const chest = 19.5, waist = sit ? 16 : 11.5, rump = sit ? 21 : 16;
+  ctx.beginPath();
+  ctx.moveTo(L + 10, 0);
+  for (const s of [-1, 1]) {
+    if (s === 1) ctx.moveTo(L + 10, 0);
+    ctx.bezierCurveTo(L + 10, s * 12, L + 2, s * chest, L - 10, s * chest);            // shoulder
+    ctx.bezierCurveTo(L * 0.1, s * chest, -L * 0.2, s * waist, -L * 0.45, s * waist);   // tuck-up
+    ctx.bezierCurveTo(-L * 0.75, s * waist, -L - 2, s * rump, -L - 6, s * (rump - 6));  // hip
+    ctx.quadraticCurveTo(-L - 10, s * 3, -L - 9, 0);
+  }
+  ctx.closePath();
+}
+
+function drawCedar(ctx, c, t) {
+  const sitting = c.state === "sit" || c.state === "chomp" || c.state === "sheepish";
+  const scared = c.scared > 0;
+  const moving = c.speed > 15 && !sitting;
+  const gait = moving ? Math.sin(c.walkPhase) : 0;
+  const wagSpeed = c.state === "chomp" ? 24 : sitting ? 13 : moving ? 9 : 5;
+  const wagAmp = scared ? 0.08 : c.state === "chomp" ? 0.75 : sitting ? 0.5 : 0.35;
+  const wag = Math.sin(t * wagSpeed) * wagAmp;
+  const L = sitting ? 24 : 32;
+  const shake = scared ? Math.sin(t * 60) * 1.2 : 0;
+
+  ctx.save();
+  ctx.translate(c.x + shake, c.y);
+  ctx.rotate(c.angle);
+  ctx.scale(1.3, 1.3);                     // an 85-lb dog: bigger than the people
+
+  // shadow
+  ctx.fillStyle = "rgba(0,0,0,0.2)";
+  ctx.beginPath(); ctx.ellipse(2, 5, L + 26, 22, 0, 0, Math.PI * 2); ctx.fill();
+
+  // paws peeking out
+  ctx.fillStyle = COAT_DARK;
+  const paws = sitting
+    ? [[L + 4, 10, 0], [L + 4, -10, 0], [-L + 6, 20, 0], [-L + 6, -20, 0]]
+    : [[L - 6, 17, gait], [L - 6, -17, -gait], [-L + 4, 15, -gait], [-L + 4, -15, gait]];
+  for (const [px, py, ph] of paws) { ctx.beginPath(); ctx.ellipse(px + ph * 8, py, 6.5, 4.5, 0, 0, Math.PI * 2); ctx.fill(); }
+
+  // tail: long, curving to one side, dark tip
+  const tuck = scared ? 0.45 : 1, side = sitting ? 1 : 0;
+  const P0 = { x: -L - 7, y: 0 }, P1 = { x: -L - 22 * tuck, y: wag * 14 + side * 10 },
+    P2 = { x: -L - (sitting ? 18 : 40) * tuck, y: wag * 30 + side * 24 + (moving ? 6 : 0) };
+  const pts = Array.from({ length: 13 }, (_, i) => { const u = i / 12;
+    return { x: (1 - u) ** 2 * P0.x + 2 * (1 - u) * u * P1.x + u * u * P2.x, y: (1 - u) ** 2 * P0.y + 2 * (1 - u) * u * P1.y + u * u * P2.y }; });
+  ctx.lineCap = "round"; ctx.lineJoin = "round";
+  for (let i = 0; i < 12; i++) {
+    ctx.strokeStyle = i >= 9 ? MASK : COAT; ctx.lineWidth = 7 - i * 0.35;
+    ctx.beginPath(); ctx.moveTo(pts[i].x, pts[i].y); ctx.lineTo(pts[i + 1].x, pts[i + 1].y); ctx.stroke();
+  }
+
+  // body + brindle
+  ctx.save();
+  bodyPath(ctx, L, sitting);
+  const g = ctx.createLinearGradient(0, -20, 0, 20);
+  g.addColorStop(0, "#c2baa9"); g.addColorStop(0.5, "#aaa190"); g.addColorStop(1, "#c2baa9");
+  ctx.fillStyle = g; ctx.fill(); ctx.clip();
+  const sx = (L + 9) / 41;
+  for (const s of STRIPES) {
+    ctx.strokeStyle = `rgba(58,50,43,${s.a})`; ctx.lineWidth = s.w; ctx.beginPath();
+    s.pts.forEach((p, k) => (k ? ctx.lineTo(p.x * sx, p.y) : ctx.moveTo(p.x * sx, p.y)));
+    ctx.stroke();
+  }
+  ctx.fillStyle = "rgba(70,62,54,0.22)";            // darker line down the spine
+  ctx.beginPath(); ctx.ellipse(-2, 0, L, 4.5, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+
+  // collar + tag
+  ctx.strokeStyle = COLLAR; ctx.lineWidth = 4.5;
+  ctx.beginPath(); ctx.moveTo(L + 7, -11); ctx.quadraticCurveTo(L + 11, 0, L + 7, 11); ctx.stroke();
+  ctx.fillStyle = "#c9a227"; ctx.beginPath(); ctx.arc(L + 12, 4, 2.2, 0, Math.PI * 2); ctx.fill();
+
+  // head
+  const hx = L + 22 + (c.state === "chomp" ? Math.sin(t * 30) * 1.4 : 0);
+  ctx.save(); ctx.translate(hx, 0);
+  if (c.state === "sit") ctx.rotate(Math.sin(t * 2.2) * 0.14);   // head tilt while begging
+  // floppy dark ears (pinned back when scared)
+  ctx.fillStyle = EAR;
+  for (const s of [1, -1]) {
+    ctx.save(); ctx.translate(-5, s * 8);
+    ctx.rotate(s * (scared ? -0.55 : 0.15 + gait * 0.1));
+    ctx.beginPath(); ctx.moveTo(-3, 0);
+    ctx.bezierCurveTo(-6, s * 9, -1, s * 15, 6, s * 13);
+    ctx.bezierCurveTo(7, s * 8, 5, s * 3, 3, 0); ctx.closePath(); ctx.fill();
+    ctx.restore();
+  }
+  // skull with faint brindle
+  ctx.fillStyle = COAT; ctx.beginPath(); ctx.ellipse(-1, 0, 13.5, 12, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.save(); ctx.clip(); ctx.strokeStyle = "rgba(58,50,43,0.35)";
+  for (const s of HEAD_STRIPES) { ctx.lineWidth = s.w; ctx.beginPath(); ctx.moveTo(s.x, -12); ctx.quadraticCurveTo(s.x + 1.5, 0, s.x, 12); ctx.stroke(); }
+  ctx.restore();
+  // muzzle: longer, grey-white (he's a grey-faced senior)
+  ctx.fillStyle = MUZZLE; ctx.beginPath(); ctx.ellipse(12, 0, 11.5, 7.6, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = "#e3dfd7"; ctx.beginPath(); ctx.ellipse(4, 0, 6, 2.6, 0, 0, Math.PI * 2); ctx.fill(); // pale blaze
+  // eyes in a soft dark mask
+  const eyeR = c.state === "sit" ? 2.3 : 1.7;
+  for (const s of [1, -1]) {
+    ctx.fillStyle = "rgba(70,64,58,.75)"; ctx.beginPath(); ctx.ellipse(3, s * 7, 4.2, 3, s * 0.4, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "#1e1610"; ctx.beginPath(); ctx.arc(4, s * 7, eyeR, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "rgba(255,255,255,.85)"; ctx.beginPath(); ctx.arc(4.6, s * 7 - 0.7, eyeR * 0.35, 0, Math.PI * 2); ctx.fill();
+  }
+  // nose
+  ctx.fillStyle = NOSE; ctx.beginPath(); ctx.ellipse(22.5, 0, 3.2, 4.4, 0, 0, Math.PI * 2); ctx.fill();
+  if (c.state === "chomp" || c.happy > 0) {         // tongue out
+    ctx.fillStyle = "#e07a86"; ctx.beginPath(); ctx.ellipse(23, 4.5, 3.4, 2.1, 0.5, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.restore();
+  ctx.restore();
+
+  if (scared) {
+    ctx.fillStyle = "#fff"; ctx.font = "bold 22px system-ui"; ctx.textAlign = "center";
+    ctx.fillText("!", c.x, c.y - 40 + Math.sin(t * 20) * 2);
+  }
+}
+
+/* =========================================================
+   People (top-down), spectators, umbrellas, owner
+   ========================================================= */
+const SKIN = ["#f1c9a5", "#e0ac84", "#c68a5e", "#8d5a3b", "#5e3b28", "#f6d7bd"];
+const HAIR = ["#2b1d14", "#5a3a22", "#b98a4a", "#d9c49a", "#888", "#ddd", "#111", "#8a3b1f"];
+const SHIRTS = ["#2f5d9e", "#c0392b", "#f2b33d", "#3c8d5a", "#7d4ea8", "#e4e4e4", "#1f2a44", "#d36b2d", "#4fa3c7", "#9b2335"];
+
+const TYPES = {
+  kid:     { p: 0.75, treats: [["🍿", 1], ["🐟", 1], ["🧀", 2]], mood: "❤️", scale: 0.78, w: 5, say: ["Here you go!", "Puppy!!", "He's so big!"] },
+  grandma: { p: 0.9,  treats: [["🦴", 2], ["🦴", 2], ["🥓", 3]], mood: "❤️", scale: 1, w: 3, say: ["Who's a good boy?", "I always bring biscuits.", "Oh, you sweetheart."] },
+  parent:  { p: 0.45, treats: [["🧀", 2], ["🥨", 1]], mood: "🙂", scale: 1, w: 6, say: ["Okay, just one.", "Don't tell anyone."], no: ["Sorry bud, coffee only.", "Not today, pal."] },
+  cooler:  { p: 0.65, treats: [["🌭", 3], ["🍗", 3]], mood: "😋", scale: 1.08, w: 2, say: ["A little hot dog for the big guy!", "Team mom's got you."], no: ["That's for the team!"] },
+  nofeed:  { p: 0,    treats: [], mood: "🚫", scale: 1, w: 3, say: [], no: ["Don't feed the dog!", "Whose dog is this?!", "No begging!"] },
+};
+function weightedType() {
+  const entries = Object.entries(TYPES), total = entries.reduce((s, [, v]) => s + v.w, 0);
+  let r = Math.random() * total;
+  for (const [k, v] of entries) { r -= v.w; if (r <= 0) return k; }
+  return "parent";
+}
+
+function drawPerson(ctx, p, t, opts = {}) {
+  const s = (p.scale || 1) * (opts.scale || 1);
+  ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.facing || 0); ctx.scale(s, s);
+  ctx.fillStyle = "rgba(0,0,0,.18)"; ctx.beginPath(); ctx.ellipse(1, 3, 21, 14, 0, 0, Math.PI * 2); ctx.fill();
+  // arms
+  ctx.fillStyle = p.shirt;
+  ctx.beginPath(); ctx.ellipse(-17, -2 + (opts.walk ? Math.sin(t * 8) * 3 : 0), 5, 9, 0.2, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(17, -2 - (opts.walk ? Math.sin(t * 8) * 3 : 0), 5, 9, -0.2, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = p.skin;
+  ctx.beginPath(); ctx.arc(-18, -11, 3.5, 0, Math.PI * 2); ctx.arc(18, -11, 3.5, 0, Math.PI * 2); ctx.fill();
+  // shoulders
+  ctx.fillStyle = p.shirt; ctx.beginPath(); ctx.ellipse(0, 0, 17, 10, 0, 0, Math.PI * 2); ctx.fill();
+  if (p.stripe) { ctx.fillStyle = p.stripe; ctx.fillRect(-17, -2, 34, 3); }
+  // head
+  ctx.fillStyle = p.skin; ctx.beginPath(); ctx.arc(0, -2, 8.5, 0, Math.PI * 2); ctx.fill();
+  if (p.cap) {
+    ctx.fillStyle = p.cap; ctx.beginPath(); ctx.arc(0, -2, 8.8, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(0, -11, 6, 4, 0, Math.PI, 0); ctx.fill(); // brim toward facing (up)
+  } else {
+    ctx.fillStyle = p.hair; ctx.beginPath(); ctx.arc(0, 0, 8.6, Math.PI * 0.05, Math.PI * 0.95 + Math.PI, false); ctx.fill();
+    if (p.long) { ctx.beginPath(); ctx.ellipse(0, 6, 8, 5, 0, 0, Math.PI * 2); ctx.fill(); }
+  }
+  // items
+  if (p.item === "coffee") { ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(20, -12, 4, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = "#6b4226"; ctx.beginPath(); ctx.arc(20, -12, 2.4, 0, Math.PI * 2); ctx.fill(); }
+  if (p.item === "bag") { ctx.fillStyle = "#e6c34a"; ctx.fillRect(-25, -16, 8, 10); }
+  if (p.item === "cooler") { ctx.fillStyle = "#2b78c5"; ctx.fillRect(22, -6, 16, 13); ctx.fillStyle = "#fff"; ctx.fillRect(22, -6, 16, 3); }
+  if (p.item === "tin") { ctx.fillStyle = "#b0413e"; ctx.beginPath(); ctx.arc(-21, -13, 5, 0, Math.PI * 2); ctx.fill(); }
+  if (p.item === "phone") { ctx.fillStyle = "#222"; ctx.fillRect(14, -15, 6, 9); }
+  ctx.restore();
+}
+
+function makeSpectators() {
+  const list = [];
+  for (const row of ROWS) for (const b of BLOCKS) {
+    let x = b.x0 + rnd(25, 60);
+    while (x < b.x1 - 25) {
+      if (Math.random() < 0.72) {
+        const type = weightedType(), T = TYPES[type];
+        list.push({
+          x, y: row - 4, type, scale: T.scale, facing: 0,
+          skin: pick(SKIN), hair: type === "grandma" ? pick(["#ddd", "#bbb", "#999"]) : pick(HAIR),
+          shirt: pick(SHIRTS), long: Math.random() < 0.4,
+          cap: Math.random() < 0.25 ? pick(["#1f2a44", "#9b2335", "#2f5d9e"]) : null,
+          item: type === "cooler" ? "cooler" : type === "grandma" ? "tin" : type === "kid" ? "bag" : type === "parent" ? pick(["coffee", "phone"]) : pick(["coffee", "phone", null]),
+          cooldown: 0, mood: 0,
+        });
+      }
+      x += rnd(58, 95);
+    }
+  }
+  return list;
+}
+
+function makeUmbrellas(people) {
+  const candidates = people.filter(p => p.type !== "nofeed").sort(() => Math.random() - 0.5);
+  const umbs = [], colours = [["#e85d4a", "#fff"], ["#2f7fd0", "#f2d64b"], ["#3c8d5a", "#f4f1e6"], ["#7d4ea8", "#f2b33d"]];
+  for (const p of candidates) {
+    if (umbs.length >= 3) break;
+    if (umbs.some(u => dist(u, p) < 220)) continue;
+    const startOpen = umbs.length < 2;
+    umbs.push({ x: p.x, y: p.y - 4, owner: p, open: startOpen, openAmt: startOpen ? 1 : 0, r: 46,
+      next: startOpen ? rnd(14, 26) : rnd(6, 14), cols: colours[umbs.length % colours.length], spin: rnd(0, 6) });
+  }
+  return umbs;
+}
+
+/* =========================================================
+   Field: high-school diamond with a simulated game
+   ========================================================= */
+const BASES = {
+  home: { x: HOME.x, y: HOME.y },
+  first: { x: HOME.x + BASE_R * Math.SQRT1_2, y: HOME.y - BASE_R * Math.SQRT1_2 },
+  second: { x: HOME.x, y: HOME.y - BASE_R * Math.SQRT2 },
+  third: { x: HOME.x - BASE_R * Math.SQRT1_2, y: HOME.y - BASE_R * Math.SQRT1_2 },
+};
+const MOUND = { x: HOME.x, y: HOME.y - 92 };
+const FENCE_R = 410;
+const POSITIONS = {
+  P: MOUND, C: { x: HOME.x, y: HOME.y + 20 }, "1B": { x: 722, y: 312 }, "2B": { x: 660, y: 262 },
+  SS: { x: 540, y: 262 }, "3B": { x: 478, y: 312 }, LF: { x: 410, y: 160 }, CF: { x: 600, y: 105 }, RF: { x: 790, y: 160 },
+};
+const TEAMS = { home: { name: "EAGLES", shirt: "#1f2a44", stripe: "#f2b33d", cap: "#1f2a44" }, away: { name: "TIGERS", shirt: "#e9e5da", stripe: "#9b2335", cap: "#9b2335" } };
+
+function makeField() {
+  const fielders = Object.entries(POSITIONS).map(([pos, p]) => ({ pos, home: { ...p }, x: p.x, y: p.y, facing: Math.PI, scale: 0.72 }));
+  return { fielders, batter: { x: HOME.x - 16, y: HOME.y + 2, facing: Math.PI / 2, scale: 0.72 }, runner: null,
+    ball: null, phase: "wait", timer: 2, score: { home: 0, away: 0 }, half: 0 };
+}
+
+/* =========================================================
+   Game state
+   ========================================================= */
+let people, umbrellas, field, cedar, owner, floorSnacks, floaters, treats, elapsed, running, paused, best, stats;
+const keys = new Set();
+let begHeld = false, touchTarget = null;
+
+function newGame() {
+  people = makeSpectators();
+  umbrellas = makeUmbrellas(people);
+  field = makeField();
+  cedar = { x: 600, y: 520, angle: -Math.PI / 2, vx: 0, vy: 0, speed: 0, walkPhase: 0, state: "walk",
+    meter: 0, target: null, scared: 0, stateT: 0, happy: 0 };
+  owner = { x: 120, y: 520, facing: 0, path: [{ x: 110, y: 522 }, { x: 600, y: 522 }, { x: 600, y: 680 }, { x: 600, y: 522 }, { x: 1090, y: 522 }, { x: 600, y: 522 }],
+    leg: 1, pause: 0, alert: 0, alertPos: null, cool: 0, skin: "#e0ac84", hair: "#5a3a22", shirt: "#1d9a8a", long: true, scale: 1.05, look: 0 };
+  floorSnacks = []; floaters = []; treats = 0; elapsed = 0;
+  stats = { begs: 0, busted: 0, spooked: 0, floor: 0 };
+  nextSnack = rnd(8, 14);
+}
+let nextSnack = 10;
+
+function say(x, y, text, colour = "#fff", big = false) { floaters.push({ x, y, text, colour, t: 0, big }); }
+
+/* =========================================================
+   Update
+   ========================================================= */
+function update(dt) {
+  elapsed += dt;
+  if (elapsed >= GAME_SECONDS) { endGame(); return; }
+  const t = elapsed;
+
+  // --- Cedar movement ---
+  let ix = 0, iy = 0;
+  if (keys.has("ArrowLeft") || keys.has("a")) ix -= 1;
+  if (keys.has("ArrowRight") || keys.has("d")) ix += 1;
+  if (keys.has("ArrowUp") || keys.has("w")) iy -= 1;
+  if (keys.has("ArrowDown") || keys.has("s")) iy += 1;
+  if (ix || iy) touchTarget = null;
+  if (!ix && !iy && touchTarget) {
+    const dx = touchTarget.x - cedar.x, dy = touchTarget.y - cedar.y, d = Math.hypot(dx, dy);
+    if (d > 8) { ix = dx / d; iy = dy / d; } else touchTarget = null;
+  }
+  const len = Math.hypot(ix, iy) || 1; ix /= len; iy /= len;
+
+  cedar.stateT -= dt;
+  if (cedar.happy > 0) cedar.happy -= dt;
+  if (cedar.scared > 0) cedar.scared -= dt;
+  if ((cedar.state === "chomp" || cedar.state === "sheepish") && cedar.stateT <= 0) cedar.state = "walk";
+
+  const locked = cedar.state === "chomp" || cedar.state === "sheepish";
+  const wantsBeg = begHeld && !locked && cedar.scared <= 0;
+  if (wantsBeg) {
+    if (cedar.state !== "sit") {
+      cedar.state = "sit"; cedar.meter = 0;
+      cedar.target = nearestPerson(70);
+      if (cedar.target) { cedar.target.mood = 2; stats.begs++; }
+    }
+  } else if (cedar.state === "sit") { cedar.state = "walk"; cedar.meter = 0; cedar.target = null; }
+
+  const maxSpeed = cedar.scared > 0 ? 260 : 175;
+  let ax = 0, ay = 0;
+  if (cedar.state === "walk" && cedar.scared <= 0) { ax = ix * maxSpeed; ay = iy * maxSpeed; }
+
+  // umbrellas: fear
+  for (const u of umbrellas) {
+    if (u.openAmt < 0.5) continue;
+    const d = dist(cedar, u), fearR = u.r * u.openAmt + 52;
+    if (d < fearR) {
+      if (cedar.scared <= 0) { stats.spooked++; say(cedar.x, cedar.y - 50, pick(["Yikes!", "NOPE.", "Umbrella!!", "Not that thing!"]), "#ffd1c9"); sfx("whine"); }
+      cedar.scared = 0.7;
+      if (cedar.state === "sit") { cedar.state = "walk"; cedar.target = null; cedar.meter = 0; }
+      const k = (fearR - d) / fearR;
+      ax = (cedar.x - u.x) / (d || 1) * (260 + 300 * k);
+      ay = (cedar.y - u.y) / (d || 1) * (260 + 300 * k);
+      touchTarget = null;
+    }
+  }
+
+  const smooth = 1 - Math.exp(-dt * (cedar.scared > 0 ? 14 : 9));
+  cedar.vx += (ax - cedar.vx) * smooth; cedar.vy += (ay - cedar.vy) * smooth;
+  if (cedar.state !== "walk") { cedar.vx *= 0.5; cedar.vy *= 0.5; }
+  cedar.x += cedar.vx * dt; cedar.y += cedar.vy * dt;
+  collideCedar();
+  cedar.speed = Math.hypot(cedar.vx, cedar.vy);
+  if (cedar.speed > 20) {
+    const want = Math.atan2(cedar.vy, cedar.vx) + (cedar.scared > 0 ? Math.PI : 0) * 0; // faces where he's going
+    cedar.angle += angleDiff(cedar.angle, want) * Math.min(1, dt * 10);
+    cedar.walkPhase += dt * cedar.speed * 0.09;
+  }
+  if (cedar.state === "sit" && cedar.target) {
+    const want = Math.atan2(cedar.target.y - cedar.y, cedar.target.x - cedar.x);
+    cedar.angle += angleDiff(cedar.angle, want) * Math.min(1, dt * 8);
+  }
+
+  // --- Begging ---
+  if (cedar.state === "sit" && cedar.target) {
+    const p = cedar.target, T = TYPES[p.type];
+    if (dist(cedar, p) > 80 || p.cooldown > 0) { cedar.target = null; }
+    else if (p.type === "nofeed") {
+      if (cedar.meter === 0) {
+        say(p.x, p.y - 34, pick(T.no), "#ffb4a8", true); sfx("huff");
+        owner.alert = 5; owner.alertPos = { x: cedar.x, y: cedar.y };
+        p.cooldown = 12; cedar.meter = 0.01;
+      }
+    } else {
+      cedar.meter += dt / 1.5;
+      if (cedar.meter >= 1) {
+        cedar.meter = 0;
+        const blockedByUmb = umbrellas.some(u => u.owner === p && u.openAmt > 0.5);
+        if (!blockedByUmb && Math.random() < T.p) {
+          const [emoji, val] = pick(T.treats);
+          treats += val; cedar.state = "chomp"; cedar.stateT = 0.9; cedar.happy = 2;
+          say(p.x, p.y - 34, pick(T.say), "#fff");
+          floaters.push({ x: p.x, y: p.y - 10, tx: cedar.x, ty: cedar.y, text: emoji, t: 0, fly: true });
+          say(cedar.x, cedar.y - 40, "+" + val, "#f2b33d", true);
+          sfx("chomp");
+          p.cooldown = rnd(22, 35);
+        } else {
+          say(p.x, p.y - 34, pick(T.no || ["Not right now, buddy."]), "#e2e2e2");
+          p.cooldown = rnd(8, 14); sfx("huff");
+        }
+        cedar.target = null;
+      }
+    }
+  }
+  for (const p of people) { if (p.cooldown > 0) p.cooldown -= dt; if (p.mood > 0) p.mood -= dt; }
+
+  // --- Floor snacks ---
+  nextSnack -= dt;
+  if (nextSnack <= 0) {
+    nextSnack = rnd(10, 18);
+    const spot = randomFloorSpot();
+    if (spot) {
+      const hotdog = Math.random() < 0.3;
+      floorSnacks.push({ ...spot, emoji: hotdog ? "🌭" : "🍿", val: hotdog ? 3 : 1, life: 16 });
+      const near = people.reduce((a, p) => (!a || dist(p, spot) < dist(a, spot) ? p : a), null);
+      if (near) say(near.x, near.y - 34, hotdog ? "Aw, my hot dog!" : "Oops!", "#fff");
+    }
+  }
+  for (const s of floorSnacks) {
+    s.life -= dt;
+    if (dist(s, cedar) < 30 && cedar.scared <= 0) {
+      s.life = 0; treats += s.val; stats.floor += s.val; cedar.state = "chomp"; cedar.stateT = 0.6; cedar.happy = 1.5;
+      say(cedar.x, cedar.y - 40, "+" + s.val, "#f2b33d", true); sfx("chomp");
+    }
+  }
+  floorSnacks = floorSnacks.filter(s => s.life > 0);
+
+  // --- Umbrellas open and close ---
+  for (const u of umbrellas) {
+    u.next -= dt;
+    if (u.next <= 0) {
+      u.open = !u.open; u.next = u.open ? rnd(16, 28) : rnd(8, 15);
+      if (u.open) { sfx("fwump"); say(u.x, u.y - 50, "FWUMP!", "#ffe08a", true); }
+    }
+    u.openAmt = clamp(u.openAmt + (u.open ? dt * 4 : -dt * 2), 0, 1);
+    u.spin += dt * 0.3;
+  }
+
+  updateOwner(dt);
+  updateField(dt);
+
+  for (const f of floaters) f.t += dt;
+  floaters = floaters.filter(f => f.t < (f.fly ? 0.6 : 1.8));
+  updateHUD();
+}
+
+function angleDiff(a, b) { let d = b - a; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; return d; }
+
+function nearestPerson(maxD) {
+  let best = null, bd = maxD;
+  for (const p of people) { const d = dist(p, cedar); if (d < bd && p.cooldown <= 0) { bd = d; best = p; } }
+  return best;
+}
+
+function collideCedar() {
+  cedar.x = clamp(cedar.x, ZONE.x0 + 20, ZONE.x1 - 20);
+  cedar.y = clamp(cedar.y, ZONE.y0 + 12, ZONE.y1 - 14);
+  for (const p of people) {
+    const d = dist(p, cedar), min = 30 * (p.scale || 1);
+    if (d < min && d > 0) { cedar.x = p.x + (cedar.x - p.x) / d * min; cedar.y = p.y + (cedar.y - p.y) / d * min; }
+  }
+  // snack shack
+  if (cedar.x > SHACK.x0 - 18 && cedar.x < SHACK.x1 + 18 && cedar.y > SHACK.y0 - 18) {
+    const pushes = [[cedar.x - (SHACK.x0 - 18), "l"], [(SHACK.x1 + 18) - cedar.x, "r"], [cedar.y - (SHACK.y0 - 18), "t"]];
+    pushes.sort((a, b) => a[0] - b[0]);
+    if (pushes[0][1] === "l") cedar.x = SHACK.x0 - 18; else if (pushes[0][1] === "r") cedar.x = SHACK.x1 + 18; else cedar.y = SHACK.y0 - 18;
+  }
+}
+
+function randomFloorSpot() {
+  for (let i = 0; i < 30; i++) {
+    const s = { x: rnd(ZONE.x0 + 40, ZONE.x1 - 40), y: pick([rnd(508, 540), rnd(600, 612), rnd(655, 667), rnd(710, 720)]) };
+    if (s.x > SHACK.x0 - 20 && s.x < SHACK.x1 + 20 && s.y > SHACK.y0 - 20) continue;
+    if (people.some(p => dist(p, s) < 34)) continue;
+    if (umbrellas.some(u => dist(u, s) < u.r + 60)) continue;
+    if (dist(s, cedar) < 120) continue;
+    return s;
+  }
+  return null;
+}
+
+function updateOwner(dt) {
+  const o = owner;
+  if (o.cool > 0) o.cool -= dt;
+  let target;
+  if (o.alert > 0) { o.alert -= dt; target = o.alertPos; }
+  else target = o.path[o.leg];
+  const speed = o.alert > 0 ? 125 : 70;
+  if (o.pause > 0) {
+    o.pause -= dt; o.look += dt;
+    o.facing = o.baseFacing + Math.sin(o.look * 1.6) * 0.9;     // looks around
+  } else {
+    const d = dist(o, target);
+    if (d < 6) {
+      if (o.alert <= 0) { o.leg = (o.leg + 1) % o.path.length; o.pause = rnd(1, 2.5); o.baseFacing = o.facing; o.look = 0; }
+    } else {
+      const ang = Math.atan2(target.y - o.y, target.x - o.x);
+      o.facing += angleDiff(o.facing, ang) * Math.min(1, dt * 6);
+      o.x += Math.cos(o.facing) * speed * dt; o.y += Math.sin(o.facing) * speed * dt;
+      o.walking = true;
+    }
+  }
+  // bust check: sees Cedar begging inside her view cone
+  if (cedar.state === "sit" && cedar.target && o.cool <= 0) {
+    const d = dist(o, cedar), ang = Math.atan2(cedar.y - o.y, cedar.x - o.x);
+    if (d < 250 && Math.abs(angleDiff(o.facing, ang)) < 0.62) {
+      const lost = Math.min(2, treats);
+      treats -= lost; stats.busted++;
+      say(o.x, o.y - 40, "CEDAR! No begging!", "#ffb4a8", true);
+      if (lost) say(cedar.x, cedar.y - 44, "−" + lost, "#ff8d7a", true);
+      cedar.state = "sheepish"; cedar.stateT = 1.4; cedar.target = null; cedar.meter = 0;
+      o.cool = 4; o.alert = 0; sfx("busted");
+    }
+  }
+}
+
+function updateField(dt) {
+  const f = field;
+  f.half = Math.min(13, Math.floor(elapsed / (GAME_SECONDS / 14)));
+  const battingAway = f.half % 2 === 0;
+  f.batTeam = battingAway ? TEAMS.away : TEAMS.home;
+  f.fieldTeam = battingAway ? TEAMS.home : TEAMS.away;
+  f.timer -= dt;
+  const pitcher = f.fielders[0];
+  if (f.phase === "wait" && f.timer <= 0) { f.phase = "windup"; f.timer = 0.6; }
+  else if (f.phase === "windup" && f.timer <= 0) { f.phase = "pitch"; f.timer = 0.32; f.ball = { x: MOUND.x, y: MOUND.y }; }
+  else if (f.phase === "pitch") {
+    const k = 1 - f.timer / 0.32;
+    f.ball = { x: MOUND.x, y: MOUND.y + (HOME.y - MOUND.y) * k };
+    if (f.timer <= 0) {
+      if (Math.random() < 0.33) {
+        const fielder = pick(f.fielders.slice(2));
+        const land = { x: fielder.home.x + rnd(-50, 50), y: fielder.home.y + rnd(-40, 30) };
+        f.phase = "hit"; f.timer = 1.1; f.hit = { from: { x: HOME.x, y: HOME.y - 6 }, to: land, fielder };
+        f.runner = { x: HOME.x, y: HOME.y, facing: -Math.PI / 4, scale: 0.72 };
+        sfx("ping");
+        if (Math.random() < 0.3) { setTimeout(() => { if (!running) return; f.score[battingAway ? "away" : "home"]++; sfx("cheer"); }, 1400); }
+      } else { f.phase = "catch"; f.timer = 0.7; }
+    }
+  } else if (f.phase === "hit") {
+    const k = 1 - f.timer / 1.1, h = f.hit;
+    f.ball = { x: h.from.x + (h.to.x - h.from.x) * k, y: h.from.y + (h.to.y - h.from.y) * k, air: Math.sin(Math.PI * k) };
+    h.fielder.x += (h.to.x - h.fielder.x) * Math.min(1, dt * 2.5); h.fielder.y += (h.to.y - h.fielder.y) * Math.min(1, dt * 2.5);
+    if (f.runner) { f.runner.x += (BASES.first.x - f.runner.x) * dt * 1.6; f.runner.y += (BASES.first.y - f.runner.y) * dt * 1.6; }
+    if (f.timer <= 0) { f.phase = "return"; f.timer = 1.2; }
+  } else if (f.phase === "return") {
+    if (f.runner) { f.runner.x += (BASES.first.x - f.runner.x) * dt * 3; f.runner.y += (BASES.first.y - f.runner.y) * dt * 3; }
+    for (const fl of f.fielders) { fl.x += (fl.home.x - fl.x) * dt * 2; fl.y += (fl.home.y - fl.y) * dt * 2; }
+    f.ball = null;
+    if (f.timer <= 0) { f.phase = "wait"; f.timer = rnd(1.8, 3.2); f.runner = null; }
+  } else if (f.phase === "catch") {
+    f.ball = f.timer > 0.45 ? { x: HOME.x, y: HOME.y + 16 } : { x: HOME.x + (MOUND.x - HOME.x), y: HOME.y + (MOUND.y - HOME.y) * (1 - f.timer / 0.45) };
+    if (f.timer <= 0) { f.phase = "wait"; f.timer = rnd(1.8, 3.2); f.ball = null; }
+  }
+  pitcher.windup = f.phase === "windup";
+}
+
+/* =========================================================
+   Drawing
+   ========================================================= */
+const canvas = document.getElementById("game"), ctx = canvas.getContext("2d");
+let view = { scale: 1, ox: 0, oy: 0, follow: false };
+function resize() {
+  const r = canvas.getBoundingClientRect(), dpr = Math.min(window.devicePixelRatio || 1, 2);
+  canvas.width = Math.round(r.width * dpr); canvas.height = Math.round(r.height * dpr);
+  const fit = Math.min(r.width / W, r.height / H);
+  view.follow = r.width < 760;
+  view.scale = (view.follow ? Math.max(fit, r.height / 560) : fit) * dpr;
+  view.cssW = r.width; view.cssH = r.height; view.dpr = dpr;
+}
+window.addEventListener("resize", resize);
+
+function camera() {
+  const vw = canvas.width / view.scale, vh = canvas.height / view.scale;
+  let cx, cy;
+  if (view.follow && cedar) { cx = clamp(cedar.x, vw / 2, W - vw / 2); cy = clamp(cedar.y - vh * 0.12, vh / 2, H - vh / 2); if (vw > W) cx = W / 2; if (vh > H) cy = H / 2; }
+  else { cx = W / 2; cy = H / 2; }
+  view.ox = canvas.width / 2 - cx * view.scale; view.oy = canvas.height / 2 - cy * view.scale;
+}
+
+function drawField(t) {
+  // trees beyond the fence
+  ctx.fillStyle = "#1f4a2c"; ctx.fillRect(0, 0, W, FENCE_Y);
+  for (let i = 0; i < 26; i++) { ctx.fillStyle = i % 2 ? "#245533" : "#1b4128"; ctx.beginPath(); ctx.arc(i * 50 + 10, 16 + (i % 3) * 8, 34, 0, Math.PI * 2); ctx.fill(); }
+  // foul territory grass
+  ctx.fillStyle = "#3f8a47"; ctx.fillRect(0, 70, W, FENCE_Y - 70);
+  // fair territory with mowing stripes
+  ctx.save();
+  ctx.beginPath(); ctx.moveTo(HOME.x, HOME.y); ctx.arc(HOME.x, HOME.y, FENCE_R, -Math.PI * 0.75, -Math.PI * 0.25); ctx.closePath(); ctx.clip();
+  for (let i = -20; i < 30; i++) { ctx.fillStyle = i % 2 ? "#4c9a52" : "#55a55b"; ctx.save(); ctx.translate(HOME.x, HOME.y); ctx.rotate(Math.PI / 4); ctx.fillRect(i * 36 - 400, -800, 36, 1600); ctx.restore(); }
+  // warning track
+  ctx.strokeStyle = "#a9774c"; ctx.lineWidth = 14; ctx.beginPath(); ctx.arc(HOME.x, HOME.y, FENCE_R - 8, -Math.PI * 0.75, -Math.PI * 0.25); ctx.stroke();
+  ctx.restore();
+  // outfield fence with yellow top
+  ctx.strokeStyle = "#1b3a24"; ctx.lineWidth = 7; ctx.beginPath(); ctx.arc(HOME.x, HOME.y, FENCE_R, -Math.PI * 0.75, -Math.PI * 0.25); ctx.stroke();
+  ctx.strokeStyle = "#f2d64b"; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(HOME.x, HOME.y, FENCE_R + 3, -Math.PI * 0.75, -Math.PI * 0.25); ctx.stroke();
+  // infield dirt arc
+  ctx.fillStyle = "#c48a5a";
+  ctx.beginPath(); ctx.moveTo(HOME.x, HOME.y); ctx.arc(HOME.x, HOME.y, 205, -Math.PI * 0.75, -Math.PI * 0.25); ctx.closePath(); ctx.fill();
+  // infield grass
+  const inset = 18;
+  ctx.fillStyle = "#4f9d55";
+  ctx.beginPath();
+  ctx.moveTo(HOME.x, HOME.y - inset * 1.4); ctx.lineTo(BASES.first.x - inset * 1.4, BASES.first.y);
+  ctx.lineTo(BASES.second.x, BASES.second.y + inset * 1.4); ctx.lineTo(BASES.third.x + inset * 1.4, BASES.third.y); ctx.closePath(); ctx.fill();
+  // home plate circle & mound
+  ctx.fillStyle = "#c48a5a"; ctx.beginPath(); ctx.arc(HOME.x, HOME.y, 30, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(MOUND.x, MOUND.y, 17, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = "#fff"; ctx.fillRect(MOUND.x - 6, MOUND.y - 1.5, 12, 3);
+  // foul lines
+  ctx.strokeStyle = "#fff"; ctx.lineWidth = 2.5;
+  for (const s of [-1, 1]) { ctx.beginPath(); ctx.moveTo(HOME.x, HOME.y); ctx.lineTo(HOME.x + s * FENCE_R * Math.SQRT1_2, HOME.y - FENCE_R * Math.SQRT1_2); ctx.stroke(); }
+  // batter's boxes
+  ctx.lineWidth = 1.5; ctx.strokeRect(HOME.x - 22, HOME.y - 12, 12, 24); ctx.strokeRect(HOME.x + 10, HOME.y - 12, 12, 24);
+  // bases
+  ctx.fillStyle = "#fff";
+  for (const k of ["first", "second", "third"]) { const b = BASES[k]; ctx.save(); ctx.translate(b.x, b.y); ctx.rotate(Math.PI / 4); ctx.fillRect(-5, -5, 10, 10); ctx.restore(); }
+  ctx.beginPath(); ctx.moveTo(HOME.x - 6, HOME.y - 6); ctx.lineTo(HOME.x + 6, HOME.y - 6); ctx.lineTo(HOME.x + 6, HOME.y + 1); ctx.lineTo(HOME.x, HOME.y + 6); ctx.lineTo(HOME.x - 6, HOME.y + 1); ctx.closePath(); ctx.fill();
+  // on-deck circles
+  ctx.strokeStyle = "rgba(255,255,255,.7)"; ctx.lineWidth = 1.5;
+  for (const s of [-1, 1]) { ctx.beginPath(); ctx.arc(HOME.x + s * 120, HOME.y + 8, 9, 0, Math.PI * 2); ctx.stroke(); }
+  // dugouts
+  for (const [x0, team] of [[300, TEAMS.away], [780, TEAMS.home]]) {
+    ctx.fillStyle = "#6b6f72"; ctx.fillRect(x0, 448, 120, 28);
+    ctx.fillStyle = "#3b3e41"; ctx.fillRect(x0 + 4, 452, 112, 18);
+    for (let i = 0; i < 6; i++) { ctx.fillStyle = team.cap; ctx.beginPath(); ctx.arc(x0 + 16 + i * 18, 461, 5, 0, Math.PI * 2); ctx.fill(); }
+  }
+  // scoreboard in left-centre field
+  const sb = { x: 760, y: 18 };
+  ctx.fillStyle = "#13202b"; ctx.fillRect(sb.x, sb.y, 210, 62);
+  ctx.strokeStyle = "#f2d64b"; ctx.lineWidth = 2; ctx.strokeRect(sb.x, sb.y, 210, 62);
+  ctx.font = "bold 12px system-ui"; ctx.textAlign = "left"; ctx.fillStyle = "#f4f1e6";
+  ctx.fillText(TEAMS.away.name, sb.x + 10, sb.y + 22); ctx.fillText(TEAMS.home.name, sb.x + 10, sb.y + 44);
+  ctx.fillStyle = "#ffcf4a"; ctx.font = "bold 16px ui-monospace, monospace"; ctx.textAlign = "right";
+  ctx.fillText(field.score.away, sb.x + 110, sb.y + 23); ctx.fillText(field.score.home, sb.x + 110, sb.y + 45);
+  ctx.textAlign = "center"; ctx.font = "bold 11px system-ui"; ctx.fillStyle = "#9fb3c8";
+  ctx.fillText("INNING", sb.x + 165, sb.y + 20);
+  ctx.font = "bold 22px ui-monospace, monospace"; ctx.fillStyle = "#ffcf4a"; ctx.fillText(Math.floor(field.half / 2) + 1, sb.x + 165, sb.y + 48);
+
+  // players
+  const f = field;
+  for (const fl of f.fielders) {
+    const p = { ...fl, shirt: f.fieldTeam.shirt, stripe: f.fieldTeam.stripe, cap: f.fieldTeam.cap, skin: "#d9a57c", facing: Math.atan2(HOME.y - fl.y, HOME.x - fl.x) + Math.PI / 2 };
+    drawPerson(ctx, p, t, { walk: f.phase === "hit" && f.hit && f.hit.fielder === fl });
+  }
+  drawPerson(ctx, { ...f.batter, shirt: f.batTeam.shirt, stripe: f.batTeam.stripe, cap: f.batTeam.cap, skin: "#c68a5e", facing: Math.PI / 2 + (f.phase === "hit" ? 1.4 : 0) }, t);
+  if (f.runner) drawPerson(ctx, { ...f.runner, shirt: f.batTeam.shirt, stripe: f.batTeam.stripe, cap: f.batTeam.cap, skin: "#8d5a3b", facing: Math.PI / 4 }, t, { walk: true });
+  if (f.ball) {
+    const a = f.ball.air || 0;
+    ctx.fillStyle = "rgba(0,0,0,.25)"; ctx.beginPath(); ctx.arc(f.ball.x, f.ball.y, 3, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(f.ball.x, f.ball.y - a * 30, 3 + a * 2, 0, Math.PI * 2); ctx.fill();
+  }
+}
+
+function drawStands(t) {
+  // fence line + backstop
+  ctx.fillStyle = "#b9b3a5"; ctx.fillRect(0, FENCE_Y + 6, W, H - FENCE_Y);
+  ctx.fillStyle = "#c9c3b5"; ctx.fillRect(0, ZONE.y0, W, 50);
+  ctx.strokeStyle = "#8c949b"; ctx.lineWidth = 4;
+  ctx.beginPath(); ctx.moveTo(0, FENCE_Y); ctx.lineTo(W, FENCE_Y); ctx.stroke();
+  ctx.strokeStyle = "rgba(140,148,155,.55)"; ctx.lineWidth = 1;
+  for (let x = 0; x < W; x += 8) { ctx.beginPath(); ctx.moveTo(x, FENCE_Y - 4); ctx.lineTo(x + 8, FENCE_Y + 4); ctx.moveTo(x + 8, FENCE_Y - 4); ctx.lineTo(x, FENCE_Y + 4); ctx.stroke(); }
+  // backstop (taller, behind home)
+  ctx.strokeStyle = "#7d858c"; ctx.lineWidth = 6;
+  ctx.beginPath(); ctx.moveTo(470, FENCE_Y); ctx.lineTo(730, FENCE_Y); ctx.stroke();
+  // bleachers
+  for (const b of BLOCKS) {
+    ctx.fillStyle = "#8d9399"; ctx.fillRect(b.x0 - 6, ROWS[0] - 30, b.x1 - b.x0 + 12, ROWS[3] - ROWS[0] + 58);
+    for (const row of ROWS) {
+      ctx.fillStyle = "#d7dbdf"; ctx.fillRect(b.x0, row - 14, b.x1 - b.x0, 16);           // seat plank
+      ctx.fillStyle = "#b3b9bf"; ctx.fillRect(b.x0, row + 6, b.x1 - b.x0, 16);           // foot board
+      ctx.fillStyle = "rgba(255,255,255,.35)"; ctx.fillRect(b.x0, row - 14, b.x1 - b.x0, 2);
+    }
+    ctx.fillStyle = "#6c7379"; ctx.fillRect(b.x0 - 6, ROWS[0] - 30, 6, ROWS[3] - ROWS[0] + 58); ctx.fillRect(b.x1, ROWS[0] - 30, 6, ROWS[3] - ROWS[0] + 58);
+  }
+  // snack shack
+  ctx.fillStyle = "#7a3b2a"; ctx.fillRect(SHACK.x0, SHACK.y0, SHACK.x1 - SHACK.x0, SHACK.y1 - SHACK.y0);
+  for (let i = 0; i < 8; i++) { ctx.fillStyle = i % 2 ? "#f4f1e6" : "#c0392b"; ctx.fillRect(SHACK.x0 + i * 18, SHACK.y0, 18, 14); }
+  ctx.fillStyle = "#f4f1e6"; ctx.font = "bold 14px system-ui"; ctx.textAlign = "center";
+  ctx.fillText("SNACK SHACK", (SHACK.x0 + SHACK.x1) / 2, SHACK.y0 + 44);
+  // sign
+  ctx.fillStyle = "#f4f1e6"; ctx.fillRect(520, 552, 160, 26);
+  ctx.fillStyle = "#1f2a44"; ctx.font = "bold 12px system-ui"; ctx.fillText("GO EAGLES!", 600, 570);
+}
+
+function drawUmbrella(u, t) {
+  if (u.openAmt <= 0.02) {
+    // closed umbrella: a thin rolled stick next to the owner
+    ctx.save(); ctx.translate(u.x + 24, u.y + 4); ctx.rotate(0.6);
+    ctx.fillStyle = u.cols[0]; ctx.fillRect(-3, -16, 6, 30); ctx.restore();
+    return;
+  }
+  const r = u.r * (0.35 + 0.65 * u.openAmt), wob = Math.sin(t * 2 + u.spin) * 0.05;
+  ctx.save(); ctx.translate(u.x, u.y);
+  ctx.fillStyle = "rgba(0,0,0,.2)"; ctx.beginPath(); ctx.arc(6, 8, r, 0, Math.PI * 2); ctx.fill();
+  ctx.rotate(u.spin + wob);
+  for (let i = 0; i < 8; i++) {
+    ctx.fillStyle = u.cols[i % 2];
+    ctx.beginPath(); ctx.moveTo(0, 0); ctx.arc(0, 0, r, i * Math.PI / 4, (i + 1) * Math.PI / 4); ctx.closePath(); ctx.fill();
+  }
+  ctx.strokeStyle = "rgba(0,0,0,.25)"; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.stroke();
+  ctx.fillStyle = "#333"; ctx.beginPath(); ctx.arc(0, 0, 3.5, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+  // scary zone hint when Cedar is close
+  if (cedar && dist(cedar, u) < u.r + 140 && u.openAmt > 0.5) {
+    ctx.strokeStyle = `rgba(232, 93, 74, ${0.35 + 0.2 * Math.sin(t * 6)})`; ctx.setLineDash([6, 6]); ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(u.x, u.y, u.r * u.openAmt + 52, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
+  }
+}
+
+function drawOwner(t) {
+  const o = owner;
+  // view cone
+  const cone = 0.62, reach = 250;
+  const g = ctx.createRadialGradient(o.x, o.y, 10, o.x, o.y, reach);
+  g.addColorStop(0, "rgba(255, 236, 140, .32)"); g.addColorStop(1, "rgba(255, 236, 140, 0)");
+  ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(o.x, o.y); ctx.arc(o.x, o.y, reach, o.facing - cone, o.facing + cone); ctx.closePath(); ctx.fill();
+  drawPerson(ctx, { ...o, facing: o.facing + Math.PI / 2 }, t, { walk: o.pause <= 0 });
+  ctx.fillStyle = "#fff"; ctx.font = "bold 11px system-ui"; ctx.textAlign = "center";
+  ctx.fillText(o.alert > 0 ? "Your human (looking for you!)" : "Your human", o.x, o.y + 34);
+  // leash loop in hand
+  ctx.strokeStyle = "#c0392b"; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(o.x + Math.cos(o.facing + 1.2) * 18, o.y + Math.sin(o.facing + 1.2) * 18, 5, 0, Math.PI * 2); ctx.stroke();
+}
+
+function drawBubbles(t) {
+  const candidate = nearestPerson(80);
+  for (const p of people) {
+    const d = dist(p, cedar);
+    if (!(p === candidate || p === cedar.target || (p.type === "nofeed" && d < 110) || (p.cooldown > 0 && d < 70))) continue;
+    let icon;
+    if (p.cooldown > 0) icon = p.type === "nofeed" ? "😠" : "💤";
+    else icon = TYPES[p.type].mood;
+    const bx = p.x, by = p.y - 30 + Math.sin(t * 3 + p.x) * 2;
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = "rgba(255,255,255,.92)"; ctx.beginPath(); ctx.arc(bx, by, 12, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(bx - 4, by + 9); ctx.lineTo(bx, by + 17); ctx.lineTo(bx + 4, by + 9); ctx.fill();
+    ctx.font = "14px system-ui, 'Apple Color Emoji', 'Segoe UI Emoji'"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillText(icon, bx, by + 1);
+    ctx.textBaseline = "alphabetic"; ctx.globalAlpha = 1;
+  }
+}
+
+function drawMeter() {
+  if (cedar.state !== "sit" || !running) return;
+  const x = cedar.x - 30, y = cedar.y + 34;
+  ctx.fillStyle = "rgba(0,0,0,.5)"; ctx.fillRect(x - 2, y - 2, 64, 12);
+  ctx.fillStyle = cedar.target ? "#f2b33d" : "#888"; ctx.fillRect(x, y, 60 * (cedar.target ? cedar.meter : 0), 8);
+  ctx.fillStyle = "#fff"; ctx.font = "bold 11px system-ui"; ctx.textAlign = "center";
+  ctx.fillText(cedar.target ? "puppy eyes…" : "(no one close enough)", cedar.x, y + 22);
+}
+
+function draw(t) {
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.fillStyle = "#14301f"; ctx.fillRect(0, 0, canvas.width, canvas.height);
+  camera();
+  ctx.setTransform(view.scale, 0, 0, view.scale, view.ox, view.oy);
+  drawField(t);
+  drawStands(t);
+  for (const s of floorSnacks) {
+    ctx.globalAlpha = s.life < 3 ? 0.4 + 0.6 * Math.abs(Math.sin(t * 8)) : 1;
+    ctx.font = "20px system-ui, 'Apple Color Emoji', 'Segoe UI Emoji'"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillText(s.emoji, s.x, s.y); ctx.textBaseline = "alphabetic"; ctx.globalAlpha = 1;
+  }
+  // people sorted by y so rows overlap nicely
+  for (const p of people) drawPerson(ctx, p, t);
+  drawOwner(t);
+  drawCedar(ctx, cedar, t);
+  for (const u of umbrellas) drawUmbrella(u, t);
+  drawMeter();
+  drawBubbles(t);
+  // floating text and flying treats
+  for (const f of floaters) {
+    if (f.fly) {
+      const k = f.t / 0.6, x = f.x + (f.tx - f.x) * k, y = f.y + (f.ty - f.y) * k - Math.sin(Math.PI * k) * 40;
+      ctx.font = "22px system-ui, 'Apple Color Emoji', 'Segoe UI Emoji'"; ctx.textAlign = "center"; ctx.fillText(f.text, x, y);
+      continue;
+    }
+    ctx.globalAlpha = clamp(1.8 - f.t, 0, 1);
+    ctx.font = (f.big ? "bold 17px" : "bold 13px") + " system-ui"; ctx.textAlign = "center";
+    const y = f.y - f.t * 22;
+    ctx.lineWidth = 4; ctx.strokeStyle = "rgba(0,0,0,.6)"; ctx.strokeText(f.text, f.x, y);
+    ctx.fillStyle = f.colour; ctx.fillText(f.text, f.x, y);
+    ctx.globalAlpha = 1;
+  }
+}
+
+/* =========================================================
+   HUD, sound, input, loop
+   ========================================================= */
+const hudTreats = document.getElementById("hudTreats"), hudInning = document.getElementById("hudInning"), hudTime = document.getElementById("hudTime");
+function ordinal(n) { return n + (n === 1 ? "st" : n === 2 ? "nd" : n === 3 ? "rd" : "th"); }
+function updateHUD() {
+  hudTreats.textContent = `🦴 ${treats} treat${treats === 1 ? "" : "s"}`;
+  const left = Math.max(0, Math.ceil(GAME_SECONDS - elapsed));
+  hudTime.textContent = `${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")}`;
+  hudInning.textContent = `${field.half % 2 ? "Bot" : "Top"} ${ordinal(Math.floor(field.half / 2) + 1)}`;
+}
+
+let audio = null, soundOn = (() => { try { return localStorage.getItem("cedar.sound") !== "off"; } catch { return true; } })();
+const soundBtn = document.getElementById("soundBtn");
+soundBtn.textContent = soundOn ? "🔊" : "🔇";
+soundBtn.addEventListener("click", () => { soundOn = !soundOn; soundBtn.textContent = soundOn ? "🔊" : "🔇"; try { localStorage.setItem("cedar.sound", soundOn ? "on" : "off"); } catch {} });
+function tone(freq, dur, type = "sine", vol = 0.2, slide = 0) {
+  const o = audio.createOscillator(), g = audio.createGain(), n = audio.currentTime;
+  o.type = type; o.frequency.setValueAtTime(freq, n); if (slide) o.frequency.exponentialRampToValueAtTime(slide, n + dur);
+  g.gain.setValueAtTime(vol, n); g.gain.exponentialRampToValueAtTime(0.001, n + dur);
+  o.connect(g).connect(audio.destination); o.start(n); o.stop(n + dur);
+}
+function noise(dur, vol = 0.2, freq = 1000) {
+  const n = audio.currentTime, len = Math.floor(audio.sampleRate * dur), buf = audio.createBuffer(1, len, audio.sampleRate), d = buf.getChannelData(0);
+  for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / len);
+  const s = audio.createBufferSource(), f = audio.createBiquadFilter(), g = audio.createGain();
+  s.buffer = buf; f.type = "bandpass"; f.frequency.value = freq; g.gain.value = vol;
+  s.connect(f).connect(g).connect(audio.destination); s.start(n);
+}
+function sfx(name) {
+  if (!soundOn || !audio) return;
+  try {
+    if (name === "ping") { tone(1900, 0.35, "triangle", 0.12); tone(2850, 0.25, "sine", 0.06); }
+    else if (name === "cheer") noise(1.2, 0.18, 900);
+    else if (name === "chomp") { noise(0.08, 0.3, 500); setTimeout(() => audio && noise(0.08, 0.25, 450), 120); }
+    else if (name === "fwump") noise(0.25, 0.4, 220);
+    else if (name === "whine") tone(900, 0.35, "sine", 0.08, 1300);
+    else if (name === "huff") noise(0.15, 0.12, 300);
+    else if (name === "busted") { tone(330, 0.18, "square", 0.08); setTimeout(() => audio && tone(247, 0.3, "square", 0.08), 180); }
+    else if (name === "boof") tone(160, 0.22, "sawtooth", 0.12, 90);
+  } catch {}
+}
+
+// keyboard
+window.addEventListener("keydown", e => {
+  const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+  if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", " "].includes(e.key)) e.preventDefault();
+  if (k === " ") begHeld = true; else keys.add(k);
+  if (k === "p" || k === "Escape") togglePause();
+});
+window.addEventListener("keyup", e => { const k = e.key.length === 1 ? e.key.toLowerCase() : e.key; if (k === " ") begHeld = false; else keys.delete(k); });
+window.addEventListener("blur", () => { keys.clear(); begHeld = false; });
+
+// touch / mouse: tap to walk there
+function toWorld(e) {
+  const r = canvas.getBoundingClientRect();
+  return { x: ((e.clientX - r.left) * view.dpr - view.ox) / view.scale, y: ((e.clientY - r.top) * view.dpr - view.oy) / view.scale };
+}
+canvas.addEventListener("pointerdown", e => {
+  if (e.pointerType === "touch") document.body.classList.add("touch");
+  if (!running || paused) return;
+  touchTarget = toWorld(e);
+});
+canvas.addEventListener("pointermove", e => { if (running && e.buttons) touchTarget = toWorld(e); });
+const sitBtn = document.getElementById("sitBtn");
+const sitOn = e => { e.preventDefault(); begHeld = true; sitBtn.classList.add("on"); touchTarget = null; };
+const sitOff = e => { e.preventDefault(); begHeld = false; sitBtn.classList.remove("on"); };
+sitBtn.addEventListener("pointerdown", sitOn); sitBtn.addEventListener("pointerup", sitOff);
+sitBtn.addEventListener("pointercancel", sitOff); sitBtn.addEventListener("pointerleave", sitOff);
+if (matchMedia("(pointer: coarse)").matches) document.body.classList.add("touch");
+
+// screens
+const titleScreen = document.getElementById("titleScreen"), endScreen = document.getElementById("endScreen"), pauseScreen = document.getElementById("pauseScreen");
+function loadBest() { try { return +localStorage.getItem("cedar.best") || 0; } catch { return 0; } }
+best = loadBest();
+document.getElementById("bestLine").textContent = best ? `Cedar's best game: ${best} treats` : "";
+function start() {
+  if (!audio) { try { audio = new (window.AudioContext || window.webkitAudioContext)(); } catch {} }
+  newGame(); running = true; paused = false;
+  titleScreen.hidden = true; endScreen.hidden = true; pauseScreen.hidden = true;
+  sfx("boof");
+}
+function rating(n) {
+  if (n >= 30) return "Best boy in the county 🏆";
+  if (n >= 20) return "Bleacher legend 🌟";
+  if (n >= 10) return "Very good boy 🐾";
+  if (n >= 4) return "Good boy 🦴";
+  return "Still a good boy ❤️";
+}
+function endGame() {
+  running = false;
+  const newBest = treats > best;
+  if (newBest) { best = treats; try { localStorage.setItem("cedar.best", best); } catch {} }
+  document.getElementById("endTreats").textContent = `🦴 ${treats}`;
+  document.getElementById("endRating").textContent = rating(treats);
+  document.getElementById("endDetail").textContent =
+    `${stats.begs} begs · ${stats.floor} from dropped snacks · busted ${stats.busted}× · spooked by umbrellas ${stats.spooked}×` +
+    ` · Final: ${TEAMS.away.name} ${field.score.away}, ${TEAMS.home.name} ${field.score.home}` + (newBest ? " · New best! 🎉" : ` · Best: ${best}`);
+  endScreen.hidden = false;
+  sfx("cheer");
+}
+function togglePause() {
+  if (!running) return;
+  paused = !paused; pauseScreen.hidden = !paused;
+  if (!paused) last = performance.now();
+}
+document.getElementById("playBtn").addEventListener("click", start);
+document.getElementById("againBtn").addEventListener("click", start);
+document.getElementById("resumeBtn").addEventListener("click", togglePause);
+document.getElementById("pauseBtn").addEventListener("click", togglePause);
+document.addEventListener("visibilitychange", () => { if (document.hidden && running && !paused) togglePause(); });
+
+// main loop (the field and Cedar idle behind the title screen too)
+let last = performance.now();
+function frame(now) {
+  const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  const t = now / 1000;
+  if (running && !paused) update(dt);
+  else if (!running) { updateField(dt * 0.6); for (const u of umbrellas) u.openAmt = u.open ? 1 : 0; }
+  draw(t);
+  requestAnimationFrame(frame);
+}
+newGame(); running = false;
+cedar.state = "sit"; cedar.x = 600; cedar.y = 530; cedar.angle = -Math.PI / 2;
+resize(); updateHUD();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
